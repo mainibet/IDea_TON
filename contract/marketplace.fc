@@ -1,0 +1,81 @@
+/* TON Marketplace Smart Contract in FunC */
+
+/* Status Enum */
+enum Status { Created, InProgress, Delivered, Completed, Cancelled }
+
+/* Persistent contract data */
+persistent buyer: MsgAddress;
+persistent seller: MsgAddress;
+persistent price: int;
+persistent deadline: int;
+persistent requirements: string;
+persistent status: Status;
+persistent deliveryTimestamp: int;
+
+/* Init contract with buyer payment */
+global main() {
+var op = getOp(); // detect operation type
+switch op {
+case 0: initContract();
+case 1: markInProgress();
+case 2: markDelivered();
+case 3: finalizeContract();
+case 4: getStatus();
+case 5: getDetails();
+}
+}
+
+/* Function to create contract and store info */
+func initContract() {
+require(msg.value > 0, 101); // ensure TON is deposited
+buyer = msg.sender;
+seller = getArgAddress(0);
+price = getArgInt(1);
+deadline = getArgInt(2);
+requirements = getArgString(3);
+status = Status.Created;
+}
+
+/* Seller marks the contract as in progress */
+func markInProgress() {
+require(msg.sender == seller, 102);
+require(status == Status.Created, 103);
+status = Status.InProgress;
+}
+
+/* Seller marks delivery */
+func markDelivered() {
+require(msg.sender == seller, 104);
+require(status == Status.InProgress, 105);
+status = Status.Delivered;
+deliveryTimestamp = now;
+}
+
+/* Finalize contract: release or refund based on deadline */
+func finalizeContract() {
+require(status == Status.Delivered || status == Status.InProgress, 106);
+if (now <= deadline && status == Status.Delivered) {
+/* release funds to seller */
+sendTon(seller, price);
+status = Status.Completed;
+} else if (now > deadline) {
+/* refund to buyer if late */
+sendTon(buyer, price);
+status = Status.Cancelled;
+}
+}
+
+/* Query current status */
+func getStatus() {
+return status;
+}
+
+/* Query full contract details */
+func getDetails() {
+return (buyer, seller, price, deadline, requirements, status, deliveryTimestamp);
+}
+
+/* Helper function to send TON */
+func sendTon(to: MsgAddress, amount: int) {
+send(to, amount);
+}
